@@ -10,6 +10,7 @@ import {
   deleteLocation,
   deleteSite,
   deleteUser,
+  importAssets,
   updateCategory,
   updateLocation,
   updateSite,
@@ -19,6 +20,8 @@ import { createLocation } from "@/app/actions";
 import { Card } from "@/components/card";
 import { formatRole } from "@/lib/permissions";
 import { USER_ROLE_VALUES } from "@/lib/user-roles";
+import { MAX_IMPORT_ROWS, type AssetImportResult } from "@/lib/asset-import";
+import { buildAssetImportTemplate } from "@/lib/csv";
 import { filterLocationsBySite, SITE_FILTER_PARAM } from "@/lib/site-filter";
 import type {
   AssetCategory,
@@ -28,7 +31,7 @@ import type {
   UserRole,
 } from "@/lib/types";
 
-type AdminTab = "categories" | "sites" | "locations" | "users" | "export";
+type AdminTab = "categories" | "sites" | "locations" | "users" | "assets";
 
 type AdminManagerProps = {
   categories: AssetCategory[];
@@ -46,7 +49,7 @@ const TAB_LABELS: Record<AdminTab, string> = {
   sites: "Sites",
   locations: "Locations",
   users: "Users",
-  export: "Export",
+  assets: "Import / Export",
 };
 
 export function AdminManager({
@@ -61,6 +64,7 @@ export function AdminManager({
   const [activeTab, setActiveTab] = useState<AdminTab>("categories");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [importResult, setImportResult] = useState<AssetImportResult | null>(null);
 
   async function runAction(action: () => Promise<{ error?: string; success?: boolean }>) {
     setError(null);
@@ -93,7 +97,7 @@ export function AdminManager({
       <div>
         <h2 className="text-lg font-semibold text-gray-900">Admin</h2>
         <p className="text-sm text-gray-500">
-          Manage categories, sites, locations, users, and export assets.
+          Manage categories, sites, locations, users, and import or export assets.
         </p>
       </div>
 
@@ -105,6 +109,7 @@ export function AdminManager({
             onClick={() => {
               setActiveTab(tab);
               setError(null);
+              setImportResult(null);
             }}
             className={`rounded-md px-3 py-1.5 text-sm font-medium ${
               activeTab === tab
@@ -166,24 +171,37 @@ export function AdminManager({
         />
       )}
 
-      {activeTab === "export" && (
-        <Card
-          title="Export Assets"
-          subtitle="Download a CSV of assets using the site filter above"
-        >
-          <p className="mb-4 text-sm text-gray-600">
-            {siteFilterName
-              ? `Export will include assets at ${siteFilterName}.`
-              : "Export will include assets from all sites."}
-          </p>
-          <button
-            type="button"
-            onClick={handleExport}
-            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
-          >
-            Download CSV
-          </button>
-        </Card>
+      {activeTab === "assets" && (
+        <AssetsImportExportPanel
+          siteFilterName={siteFilterName}
+          loading={loading}
+          importResult={importResult}
+          onExport={handleExport}
+          onImport={async (csvText) => {
+            setError(null);
+            setImportResult(null);
+            setLoading(true);
+            const result = await importAssets(csvText);
+            setLoading(false);
+
+            if ("error" in result && result.error) {
+              setError(result.error);
+              return;
+            }
+
+            if (!("imported" in result)) return;
+
+            if (result.imported > 0) {
+              router.refresh();
+            }
+
+            setImportResult({
+              imported: result.imported,
+              failed: result.failed,
+              errors: result.errors,
+            });
+          }}
+        />
       )}
     </div>
   );
@@ -912,6 +930,114 @@ function RowActions({
       >
         Delete
       </button>
+    </div>
+  );
+}
+
+function AssetsImportExportPanel({
+  siteFilterName,
+  loading,
+  importResult,
+  onExport,
+  onImport,
+}: {
+  siteFilterName: string | null;
+  loading: boolean;
+  importResult: AssetImportResult | null;
+  onExport: () => void;
+  onImport: (csvText: string) => Promise<void>;
+}) {
+  function handleDownloadTemplate() {
+    const csv = buildAssetImportTemplate();
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "assets-import-template.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const csvText = await file.text();
+    await onImport(csvText);
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card
+        title="Import Assets"
+        subtitle="Upload a CSV to create assets in bulk"
+      >
+        <p className="mb-4 text-sm text-gray-600">
+          Use site and location names to place each asset. Categories must already
+          exist, and status must be one of: active, inactive, maintenance, retired.
+          Up to {MAX_IMPORT_ROWS} assets per file.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={handleDownloadTemplate}
+            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Download template
+          </button>
+          <label className="cursor-pointer rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 has-[:disabled]:opacity-50">
+            {loading ? "Importing…" : "Choose CSV file"}
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              disabled={loading}
+              onChange={handleFileChange}
+              className="sr-only"
+            />
+          </label>
+        </div>
+
+        {importResult && (
+          <div className="mt-4 space-y-3">
+            <p className="text-sm text-gray-700">
+              Imported {importResult.imported} asset
+              {importResult.imported === 1 ? "" : "s"}
+              {importResult.failed > 0
+                ? `; ${importResult.failed} row${importResult.failed === 1 ? "" : "s"} failed`
+                : "."}
+            </p>
+            {importResult.errors.length > 0 && (
+              <div className="max-h-48 overflow-y-auto rounded-md border border-red-200 bg-red-50 p-3">
+                <ul className="space-y-1 text-sm text-red-800">
+                  {importResult.errors.map((entry) => (
+                    <li key={`${entry.row}-${entry.message}`}>
+                      Row {entry.row}: {entry.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+
+      <Card
+        title="Export Assets"
+        subtitle="Download a CSV of assets using the site filter above"
+      >
+        <p className="mb-4 text-sm text-gray-600">
+          {siteFilterName
+            ? `Export will include assets at ${siteFilterName}.`
+            : "Export will include assets from all sites."}
+        </p>
+        <button
+          type="button"
+          onClick={onExport}
+          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+        >
+          Download CSV
+        </button>
+      </Card>
     </div>
   );
 }

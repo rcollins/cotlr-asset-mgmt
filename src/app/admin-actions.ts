@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getRoleForUser, syncUserRole, toDatabaseRole } from "@/lib/user-roles";
+import { importAssetsFromCsv } from "@/lib/asset-import";
 import { canAccessAdmin } from "@/lib/permissions";
+import type { Location } from "@/lib/types";
 import type {
   CategoryFormData,
   LocationUpdateData,
@@ -316,4 +318,41 @@ export async function deleteUser(id: string) {
 
   revalidateAdminPaths();
   return { success: true };
+}
+
+export async function importAssets(csvText: string) {
+  const auth = await requireCfo();
+  if ("error" in auth) return auth;
+
+  const trimmed = csvText.trim();
+  if (!trimmed) {
+    return { error: "CSV file is empty" };
+  }
+
+  const { data: locationRows, error: locationError } = await auth.supabase
+    .from("locations")
+    .select("id, site_id, name, description, site:sites!site_id(id, name)");
+
+  if (locationError) return { error: locationError.message };
+
+  const locations = (locationRows ?? []).map((row) => ({
+    id: row.id,
+    site_id: row.site_id,
+    name: row.name,
+    description: row.description,
+    site: Array.isArray(row.site) ? row.site[0] ?? null : row.site,
+  })) as Location[];
+
+  const result = await importAssetsFromCsv(
+    auth.supabase,
+    trimmed,
+    auth.user.id,
+    locations,
+  );
+
+  if (result.imported > 0) {
+    revalidateAdminPaths();
+  }
+
+  return { success: true, ...result };
 }
