@@ -1,23 +1,65 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createAsset, deleteAsset, updateAsset } from "@/app/actions";
 import { AssetForm } from "@/components/asset-form";
 import { Card } from "@/components/card";
+import { LAST_SITE_STORAGE_KEY } from "@/lib/asset-preferences";
 import { canDeleteAsset } from "@/lib/permissions";
-import type { Asset, AssetFormData, UserRole } from "@/lib/types";
+import type { Asset, AssetFormData, AssetCategory, Site, UserRole } from "@/lib/types";
 
 type AssetManagerProps = {
   assets: Asset[];
+  sites: Site[];
+  categories: AssetCategory[];
+  lastUsedSiteId: string | null;
   userRole: UserRole;
 };
 
-export function AssetManager({ assets, userRole }: AssetManagerProps) {
+function resolveDefaultSiteId(
+  sites: Site[],
+  serverLastUsedSiteId: string | null,
+): string | null {
+  if (typeof window !== "undefined") {
+    const stored = localStorage.getItem(LAST_SITE_STORAGE_KEY);
+    if (stored && sites.some((site) => site.id === stored)) {
+      return stored;
+    }
+  }
+
+  if (
+    serverLastUsedSiteId &&
+    sites.some((site) => site.id === serverLastUsedSiteId)
+  ) {
+    return serverLastUsedSiteId;
+  }
+
+  return null;
+}
+
+export function AssetManager({
+  assets,
+  sites,
+  categories,
+  lastUsedSiteId: serverLastUsedSiteId,
+  userRole,
+}: AssetManagerProps) {
   const [showForm, setShowForm] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [defaultSiteId, setDefaultSiteId] = useState<string | null>(null);
 
   const allowDelete = canDeleteAsset(userRole);
+
+  useEffect(() => {
+    setDefaultSiteId(resolveDefaultSiteId(sites, serverLastUsedSiteId));
+  }, [sites, serverLastUsedSiteId]);
+
+  function rememberSiteId(siteId: string | undefined) {
+    if (!siteId) return;
+    localStorage.setItem(LAST_SITE_STORAGE_KEY, siteId);
+    setDefaultSiteId(siteId);
+  }
 
   function handleAddClick() {
     setEditingAsset(null);
@@ -40,6 +82,7 @@ export function AssetManager({ assets, userRole }: AssetManagerProps) {
       : await createAsset(data);
 
     if (result.success) {
+      rememberSiteId(data.location_id);
       setShowForm(false);
       setEditingAsset(null);
     }
@@ -56,6 +99,14 @@ export function AssetManager({ assets, userRole }: AssetManagerProps) {
     if (result.error) {
       setDeleteError(result.error);
     }
+  }
+
+  function getSiteName(asset: Asset): string {
+    return asset.site?.name ?? "—";
+  }
+
+  function getCategoryName(asset: Asset): string {
+    return asset.asset_category?.name ?? "—";
   }
 
   return (
@@ -92,7 +143,11 @@ export function AssetManager({ assets, userRole }: AssetManagerProps) {
           }
         >
           <AssetForm
+            key={editingAsset?.id ?? "new"}
             asset={editingAsset ?? undefined}
+            sites={sites}
+            categories={categories}
+            defaultSiteId={editingAsset ? editingAsset.location_id : defaultSiteId}
             onSubmit={handleSubmit}
             onCancel={handleCancel}
           />
@@ -134,7 +189,7 @@ export function AssetManager({ assets, userRole }: AssetManagerProps) {
                       {asset.name}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {asset.category ?? "—"}
+                      {getCategoryName(asset)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                       <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-medium capitalize text-gray-800">
@@ -142,7 +197,7 @@ export function AssetManager({ assets, userRole }: AssetManagerProps) {
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {asset.location ?? "—"}
+                      {getSiteName(asset)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                       {asset.purchase_value != null

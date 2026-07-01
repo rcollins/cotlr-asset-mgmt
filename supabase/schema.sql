@@ -1,5 +1,10 @@
 -- Reference schema for the Asset Management System.
 -- Align column/table names with your existing Supabase database as needed.
+--
+-- Email OTP: set length to 8 in Supabase Dashboard
+-- (Authentication → Providers → Email → OTP length), or for local dev in config.toml:
+--   [auth.email]
+--   otp_length = 8
 
 -- User profiles (extends auth.users)
 create table if not exists public.profiles (
@@ -11,16 +16,30 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default now()
 );
 
+-- Sites (locations for assets)
+create table if not exists public.sites (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  created_at timestamptz not null default now()
+);
+
+-- Asset categories
+create table if not exists public.asset_categories (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  created_at timestamptz not null default now()
+);
+
 -- Assets
 create table if not exists public.assets (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   description text,
-  category text,
+  category uuid references public.asset_categories(id),
   serial_number text,
   purchase_value numeric(12, 2),
   status text not null default 'active',
-  location text,
+  location_id uuid references public.sites(id),
   created_by uuid references public.profiles(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -68,6 +87,8 @@ create or replace trigger on_auth_user_created
 
 -- Row Level Security
 alter table public.profiles enable row level security;
+alter table public.sites enable row level security;
+alter table public.asset_categories enable row level security;
 alter table public.assets enable row level security;
 alter table public.approval_requests enable row level security;
 alter table public.asset_requests enable row level security;
@@ -76,6 +97,18 @@ alter table public.asset_requests enable row level security;
 create policy "Users can view own profile"
   on public.profiles for select
   using (auth.uid() = id);
+
+-- Sites: authenticated users can read all sites
+create policy "Authenticated users can view sites"
+  on public.sites for select
+  to authenticated
+  using (true);
+
+-- Asset categories: authenticated users can read all categories
+create policy "Authenticated users can view asset categories"
+  on public.asset_categories for select
+  to authenticated
+  using (true);
 
 -- Assets: authenticated users can read all assets
 create policy "Authenticated users can view assets"

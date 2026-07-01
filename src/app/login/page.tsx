@@ -1,3 +1,5 @@
+import { AuthFormSkeleton } from "@/components/auth-form-skeleton";
+import { ClientOnly } from "@/components/client-only";
 import { LoginForm } from "@/components/login-form";
 
 export default function LoginPage() {
@@ -12,7 +14,9 @@ export default function LoginPage() {
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <LoginForm />
+          <ClientOnly fallback={<AuthFormSkeleton />}>
+            <LoginForm />
+          </ClientOnly>
         </div>
       </div>
     </div>

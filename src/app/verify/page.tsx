@@ -1,4 +1,6 @@
 import { Suspense } from "react";
+import { AuthFormSkeleton } from "@/components/auth-form-skeleton";
+import { ClientOnly } from "@/components/client-only";
 import { VerifyForm } from "@/components/verify-form";
 
 export default function VerifyPage() {
@@ -13,9 +15,11 @@ export default function VerifyPage() {
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <Suspense fallback={<p className="text-sm text-gray-500">Loading...</p>}>
-            <VerifyForm />
-          </Suspense>
+          <ClientOnly fallback={<AuthFormSkeleton />}>
+            <Suspense fallback={<AuthFormSkeleton />}>
+              <VerifyForm />
+            </Suspense>
+          </ClientOnly>
         </div>
       </div>
     </div>

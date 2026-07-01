@@ -7,15 +7,27 @@ export type Profile = {
   role: UserRole;
 };
 
+export type Site = {
+  id: string;
+  name: string;
+};
+
+export type AssetCategory = {
+  id: string;
+  name: string;
+};
+
 export type Asset = {
   id: string;
   name: string;
   description: string | null;
   category: string | null;
+  asset_category?: AssetCategory | null;
   serial_number: string | null;
   purchase_value: number | null;
   status: string;
-  location: string | null;
+  location_id: string | null;
+  site?: Site | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -28,7 +40,7 @@ export type AssetFormData = {
   serial_number?: string;
   purchase_value?: number;
   status: string;
-  location?: string;
+  location_id?: string;
 };
 
 export type DashboardStats = {

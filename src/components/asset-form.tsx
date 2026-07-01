@@ -1,19 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import type { Asset, AssetFormData } from "@/lib/types";
+import type { Asset, AssetFormData, AssetCategory, Site } from "@/lib/types";
 
 type AssetFormProps = {
   asset?: Asset;
+  sites: Site[];
+  categories: AssetCategory[];
+  defaultSiteId?: string | null;
   onSubmit: (data: AssetFormData) => Promise<{ error?: string; success?: boolean }>;
   onCancel: () => void;
 };
 
 const STATUS_OPTIONS = ["active", "inactive", "maintenance", "retired"];
 
-export function AssetForm({ asset, onSubmit, onCancel }: AssetFormProps) {
+export function AssetForm({
+  asset,
+  sites,
+  categories,
+  defaultSiteId,
+  onSubmit,
+  onCancel,
+}: AssetFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const selectedSiteId = asset?.location_id ?? defaultSiteId ?? "";
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -22,6 +34,7 @@ export function AssetForm({ asset, onSubmit, onCancel }: AssetFormProps) {
 
     const formData = new FormData(e.currentTarget);
     const purchaseValue = formData.get("purchase_value") as string;
+    const locationId = formData.get("location_id") as string;
 
     const data: AssetFormData = {
       name: formData.get("name") as string,
@@ -30,7 +43,7 @@ export function AssetForm({ asset, onSubmit, onCancel }: AssetFormProps) {
       serial_number: (formData.get("serial_number") as string) || undefined,
       purchase_value: purchaseValue ? parseFloat(purchaseValue) : undefined,
       status: formData.get("status") as string,
-      location: (formData.get("location") as string) || undefined,
+      location_id: locationId || undefined,
     };
 
     const result = await onSubmit(data);
@@ -68,13 +81,19 @@ export function AssetForm({ asset, onSubmit, onCancel }: AssetFormProps) {
           <label htmlFor="category" className="block text-sm font-medium text-gray-700">
             Category
           </label>
-          <input
+          <select
             id="category"
             name="category"
-            type="text"
             defaultValue={asset?.category ?? ""}
             className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
-          />
+          >
+            <option value="">Select a category</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>
@@ -125,16 +144,22 @@ export function AssetForm({ asset, onSubmit, onCancel }: AssetFormProps) {
         </div>
 
         <div>
-          <label htmlFor="location" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="location_id" className="block text-sm font-medium text-gray-700">
             Location
           </label>
-          <input
-            id="location"
-            name="location"
-            type="text"
-            defaultValue={asset?.location ?? ""}
+          <select
+            id="location_id"
+            name="location_id"
+            defaultValue={selectedSiteId}
             className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
-          />
+          >
+            <option value="">Select a site</option>
+            {sites.map((site) => (
+              <option key={site.id} value={site.id}>
+                {site.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="sm:col-span-2">

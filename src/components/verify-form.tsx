@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { OTP_LENGTH, OTP_PLACEHOLDER } from "@/lib/auth-config";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -75,7 +76,7 @@ export function VerifyForm() {
       )}
 
       <p className="text-sm text-gray-600">
-        Enter the 6-digit code sent to <strong>{email}</strong>
+        Enter the {OTP_LENGTH}-digit code sent to <strong>{email}</strong>
       </p>
 
       <div>
@@ -88,17 +89,17 @@ export function VerifyForm() {
           inputMode="numeric"
           pattern="[0-9]*"
           required
-          maxLength={6}
+          maxLength={OTP_LENGTH}
           value={token}
           onChange={(e) => setToken(e.target.value.replace(/\D/g, ""))}
-          placeholder="000000"
+          placeholder={OTP_PLACEHOLDER}
           className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-center text-lg tracking-widest shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
         />
       </div>
 
       <button
         type="submit"
-        disabled={loading || token.length < 6}
+        disabled={loading || token.length < OTP_LENGTH}
         className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
       >
         {loading ? "Verifying..." : "Verify & Sign In"}

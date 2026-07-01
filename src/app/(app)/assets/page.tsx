@@ -1,5 +1,10 @@
 import { AssetManager } from "@/components/asset-manager";
-import { getCurrentProfile } from "@/lib/data";
+import {
+  getAssetCategories,
+  getCurrentProfile,
+  getLastUsedSiteId,
+  getSites,
+} from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import type { Asset } from "@/lib/types";
 
@@ -8,14 +13,22 @@ export default async function AssetsPage() {
   if (!profile) return null;
 
   const supabase = await createClient();
-  const { data: assets } = await supabase
-    .from("assets")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const [assetsResult, sites, categories, lastUsedSiteId] = await Promise.all([
+    supabase
+      .from("assets")
+      .select("*, site:sites!location_id(id, name), asset_category:asset_categories(id, name)")
+      .order("created_at", { ascending: false }),
+    getSites(),
+    getAssetCategories(),
+    getLastUsedSiteId(profile.id),
+  ]);
 
   return (
     <AssetManager
-      assets={(assets as Asset[]) ?? []}
+      assets={(assetsResult.data as Asset[]) ?? []}
+      sites={sites}
+      categories={categories}
+      lastUsedSiteId={lastUsedSiteId}
       userRole={profile.role}
     />
   );
