@@ -18,6 +18,7 @@ import {
 import { createLocation } from "@/app/actions";
 import { Card } from "@/components/card";
 import { formatRole } from "@/lib/permissions";
+import { USER_ROLE_VALUES } from "@/lib/user-roles";
 import { filterLocationsBySite, SITE_FILTER_PARAM } from "@/lib/site-filter";
 import type {
   AssetCategory,
@@ -38,7 +39,7 @@ type AdminManagerProps = {
   siteFilterName: string | null;
 };
 
-const USER_ROLES: UserRole[] = ["admin", "cfo", "manager", "viewer"];
+const USER_ROLES = [...USER_ROLE_VALUES];
 
 const TAB_LABELS: Record<AdminTab, string> = {
   categories: "Categories",

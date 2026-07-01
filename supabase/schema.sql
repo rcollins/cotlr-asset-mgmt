@@ -27,7 +27,10 @@ create table if not exists public.user_roles (
   role text not null,
   site_id uuid references public.sites(id),
   created_at timestamptz,
-  updated_at timestamptz
+  updated_at timestamptz,
+  constraint user_roles_role_check check (
+    role in ('cfo', 'team_manager', 'viewer')
+  )
 );
 
 create table if not exists public.locations (

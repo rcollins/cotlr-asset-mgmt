@@ -1,9 +1,32 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UserRole } from "@/lib/types";
 
+export const USER_ROLE_VALUES = ["cfo", "team_manager", "viewer"] as const;
+
+const ROLE_ALIASES: Record<string, UserRole> = {
+  cfo: "cfo",
+  team_manager: "team_manager",
+  viewer: "viewer",
+  manager: "team_manager",
+  admin: "cfo",
+};
+
+export function toDatabaseRole(role: string | undefined | null): UserRole | null {
+  if (!role) return null;
+
+  const normalized = role.trim().toLowerCase();
+  const aliased = ROLE_ALIASES[normalized];
+  if (aliased) return aliased;
+
+  if ((USER_ROLE_VALUES as readonly string[]).includes(normalized)) {
+    return normalized as UserRole;
+  }
+
+  return null;
+}
+
 export function normalizeUserRole(role: string | undefined | null): UserRole {
-  if (!role) return "viewer";
-  return role.toLowerCase() as UserRole;
+  return toDatabaseRole(role) ?? "viewer";
 }
 
 export function roleFromUserRolesMap(
@@ -40,15 +63,22 @@ export async function getRoleForUser(
 export async function syncUserRole(
   admin: SupabaseClient,
   userId: string,
-  role: UserRole,
+  role: string,
   siteId: string | null = null,
 ): Promise<{ error?: string }> {
+  const dbRole = toDatabaseRole(role);
+  if (!dbRole) {
+    return {
+      error: `Invalid role. Allowed roles: ${USER_ROLE_VALUES.join(", ")}`,
+    };
+  }
+
   const now = new Date().toISOString();
 
   const { error: userRoleError } = await admin.from("user_roles").upsert(
     {
       user_id: userId,
-      role,
+      role: dbRole,
       site_id: siteId,
       updated_at: now,
     },
@@ -61,7 +91,7 @@ export async function syncUserRole(
 
   const { error: profileError } = await admin
     .from("profiles")
-    .update({ role, updated_at: now })
+    .update({ role: dbRole, updated_at: now })
     .eq("id", userId);
 
   if (profileError) {
@@ -69,6 +99,19 @@ export async function syncUserRole(
   }
 
   return {};
+}
+
+export function formatRole(role: string): string {
+  const dbRole = toDatabaseRole(role);
+  if (!dbRole) return role;
+
+  const labels: Record<UserRole, string> = {
+    cfo: "CFO",
+    team_manager: "Team Manager",
+    viewer: "Viewer",
+  };
+
+  return labels[dbRole];
 }
 
 export async function fetchUserRoleMap(

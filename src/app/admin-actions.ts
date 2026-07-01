@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { getRoleForUser, syncUserRole } from "@/lib/user-roles";
+import { getRoleForUser, syncUserRole, toDatabaseRole } from "@/lib/user-roles";
 import { canAccessAdmin } from "@/lib/permissions";
 import type {
   CategoryFormData,
@@ -231,13 +231,18 @@ export async function createUser(data: UserFormData) {
   const email = data.email.trim().toLowerCase();
   if (!email) return { error: "Email is required" };
 
+  const dbRole = toDatabaseRole(data.role);
+  if (!dbRole) {
+    return { error: "Selected role is invalid" };
+  }
+
   const admin = createAdminClient();
   const { data: created, error: createError } = await admin.auth.admin.createUser({
     email,
     email_confirm: true,
     user_metadata: {
       full_name: data.full_name?.trim() || null,
-      role: data.role,
+      role: dbRole,
     },
   });
 
@@ -249,13 +254,13 @@ export async function createUser(data: UserFormData) {
     id: created.user.id,
     email,
     full_name: data.full_name?.trim() || null,
-    role: data.role,
+    role: dbRole,
     updated_at: new Date().toISOString(),
   });
 
   if (profileError) return { error: profileError.message };
 
-  const roleSync = await syncUserRole(admin, created.user.id, data.role);
+  const roleSync = await syncUserRole(admin, created.user.id, dbRole);
   if (roleSync.error) return { error: roleSync.error };
 
   revalidateAdminPaths();
@@ -281,10 +286,12 @@ export async function updateUser(id: string, data: UserUpdateData) {
   const roleSync = await syncUserRole(admin, id, data.role);
   if (roleSync.error) return { error: roleSync.error };
 
+  const dbRole = toDatabaseRole(data.role);
+
   const { error: authError } = await admin.auth.admin.updateUserById(id, {
     user_metadata: {
       full_name: data.full_name?.trim() || null,
-      role: data.role,
+      role: dbRole,
     },
   });
 
