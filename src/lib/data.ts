@@ -1,5 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import {
+  fetchUserRoleMap,
+  getRoleForUser,
+  roleFromUserRolesMap,
+} from "@/lib/user-roles";
 import type {
   AssetCategory,
   AssetStatus,
@@ -19,17 +24,26 @@ export async function getCurrentProfile(): Promise<Profile | null> {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role")
+    .select("id, email, full_name")
     .eq("id", user.id)
     .single();
 
-  if (profile) return profile as Profile;
+  const role = await getRoleForUser(supabase, user.id);
+
+  if (profile) {
+    return {
+      id: profile.id,
+      email: profile.email,
+      full_name: profile.full_name,
+      role,
+    };
+  }
 
   return {
     id: user.id,
     email: user.email ?? "",
     full_name: user.user_metadata?.full_name ?? null,
-    role: (user.user_metadata?.role as Profile["role"]) ?? "viewer",
+    role,
   };
 }
 
@@ -138,26 +152,37 @@ export async function getLastUsedLocationId(userId: string): Promise<string | nu
 
 export async function getProfilesForAdmin(): Promise<Profile[]> {
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("profiles")
-    .select("id, email, full_name, role")
-    .order("email");
 
-  if (error) {
-    throw new Error(error.message);
+  const [profilesResult, roleByUserId] = await Promise.all([
+    admin.from("profiles").select("id, email, full_name, role").order("email"),
+    fetchUserRoleMap(admin),
+  ]);
+
+  if (profilesResult.error) {
+    throw new Error(profilesResult.error.message);
   }
 
-  return (data as Profile[]) ?? [];
+  return (profilesResult.data ?? []).map((profile) => ({
+    id: profile.id,
+    email: profile.email,
+    full_name: profile.full_name,
+    role: roleFromUserRolesMap(profile.id, roleByUserId, profile.role),
+  }));
 }
 
 export async function getProfiles(): Promise<Profile[]> {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, email, full_name, role")
-    .order("email");
+  const [profilesResult, roleByUserId] = await Promise.all([
+    supabase.from("profiles").select("id, email, full_name, role").order("email"),
+    fetchUserRoleMap(supabase),
+  ]);
 
-  return (data as Profile[]) ?? [];
+  return (profilesResult.data ?? []).map((profile) => ({
+    id: profile.id,
+    email: profile.email,
+    full_name: profile.full_name,
+    role: roleFromUserRolesMap(profile.id, roleByUserId, profile.role),
+  }));
 }
 
 export async function getAssetCategories(): Promise<AssetCategory[]> {

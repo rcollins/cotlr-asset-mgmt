@@ -1,7 +1,7 @@
 -- Reference schema (matches production Supabase database).
 
 -- profiles
--- user_roles, org_settings, audit_log also exist in production.
+-- org_settings, audit_log also exist in production.
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -17,6 +17,15 @@ create table if not exists public.sites (
   name text not null,
   address text,
   created_by uuid,
+  created_at timestamptz,
+  updated_at timestamptz
+);
+
+create table if not exists public.user_roles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null unique references auth.users(id) on delete cascade,
+  role text not null,
+  site_id uuid references public.sites(id),
   created_at timestamptz,
   updated_at timestamptz
 );

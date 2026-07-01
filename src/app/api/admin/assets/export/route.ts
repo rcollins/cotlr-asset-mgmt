@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { buildAssetsCsv } from "@/lib/csv";
 import { canAccessAdmin } from "@/lib/permissions";
 import { parseSiteFilter } from "@/lib/site-filter";
-import type { UserRole } from "@/lib/types";
+import { getRoleForUser } from "@/lib/user-roles";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -15,13 +15,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  const role = (profile?.role as UserRole) ?? "viewer";
+  const role = await getRoleForUser(supabase, user.id);
 
   if (!canAccessAdmin(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

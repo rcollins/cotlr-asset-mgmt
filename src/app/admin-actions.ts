@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { getRoleForUser, syncUserRole } from "@/lib/user-roles";
 import { canAccessAdmin } from "@/lib/permissions";
 import type {
   CategoryFormData,
@@ -31,13 +32,7 @@ async function requireCfo() {
     return { error: "Not authenticated" as const };
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  const role = (profile?.role as UserRole) ?? "viewer";
+  const role = await getRoleForUser(supabase, user.id);
 
   if (!canAccessAdmin(role)) {
     return { error: "Only CFO users can access admin" as const };
@@ -260,6 +255,9 @@ export async function createUser(data: UserFormData) {
 
   if (profileError) return { error: profileError.message };
 
+  const roleSync = await syncUserRole(admin, created.user.id, data.role);
+  if (roleSync.error) return { error: roleSync.error };
+
   revalidateAdminPaths();
   return { success: true };
 }
@@ -274,12 +272,14 @@ export async function updateUser(id: string, data: UserUpdateData) {
     .from("profiles")
     .update({
       full_name: data.full_name?.trim() || null,
-      role: data.role,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
 
   if (profileError) return { error: profileError.message };
+
+  const roleSync = await syncUserRole(admin, id, data.role);
+  if (roleSync.error) return { error: roleSync.error };
 
   const { error: authError } = await admin.auth.admin.updateUserById(id, {
     user_metadata: {

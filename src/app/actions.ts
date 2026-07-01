@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { buildAssetWritePayload } from "@/lib/asset-payload";
 import { createClient } from "@/lib/supabase/server";
+import { getRoleForUser } from "@/lib/user-roles";
 import { canDeleteAsset, canManageLocationsAndAssets } from "@/lib/permissions";
 import type { AssetFormData, Location, LocationFormData, UserRole } from "@/lib/types";
 
@@ -15,13 +16,7 @@ async function getAuthenticatedUser() {
 }
 
 async function getUserRole(supabase: Awaited<ReturnType<typeof createClient>>, userId: string): Promise<UserRole> {
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .single();
-
-  return (profile?.role as UserRole) ?? "viewer";
+  return getRoleForUser(supabase, userId);
 }
 
 export async function createAsset(data: AssetFormData) {
