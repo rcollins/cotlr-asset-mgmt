@@ -37,7 +37,7 @@ create table if not exists public.assets (
   description text,
   category uuid references public.asset_categories(id),
   serial_number text,
-  purchase_value numeric(12, 2),
+  purchase_price numeric(12, 2),
   status text not null default 'active',
   location_id uuid references public.sites(id),
   created_by uuid references public.profiles(id),

@@ -33,7 +33,7 @@ export function AssetForm({
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
-    const purchaseValue = formData.get("purchase_value") as string;
+    const purchasePrice = formData.get("purchase_price") as string;
     const locationId = formData.get("location_id") as string;
 
     const data: AssetFormData = {
@@ -41,7 +41,7 @@ export function AssetForm({
       description: (formData.get("description") as string) || undefined,
       category: (formData.get("category") as string) || undefined,
       serial_number: (formData.get("serial_number") as string) || undefined,
-      purchase_value: purchaseValue ? parseFloat(purchaseValue) : undefined,
+      purchase_price: purchasePrice ? parseFloat(purchasePrice) : undefined,
       status: formData.get("status") as string,
       location_id: locationId || undefined,
     };
@@ -110,16 +110,16 @@ export function AssetForm({
         </div>
 
         <div>
-          <label htmlFor="purchase_value" className="block text-sm font-medium text-gray-700">
-            Purchase Value
+          <label htmlFor="purchase_price" className="block text-sm font-medium text-gray-700">
+            Purchase Price
           </label>
           <input
-            id="purchase_value"
-            name="purchase_value"
+            id="purchase_price"
+            name="purchase_price"
             type="number"
             step="0.01"
             min="0"
-            defaultValue={asset?.purchase_value ?? ""}
+            defaultValue={asset?.purchase_price ?? ""}
             className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
           />
         </div>

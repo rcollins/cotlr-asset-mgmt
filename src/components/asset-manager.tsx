@@ -200,8 +200,8 @@ export function AssetManager({
                       {getSiteName(asset)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {asset.purchase_value != null
-                        ? `$${asset.purchase_value.toLocaleString()}`
+                      {asset.purchase_price != null
+                        ? `$${asset.purchase_price.toLocaleString()}`
                         : "—"}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-right text-sm">
