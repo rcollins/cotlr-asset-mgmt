@@ -21,7 +21,7 @@ export type Asset = {
   id: string;
   name: string;
   description: string | null;
-  category: string | null;
+  category_id: string | null;
   asset_category?: AssetCategory | null;
   serial_number: string | null;
   purchase_price: number | null;
@@ -36,7 +36,7 @@ export type Asset = {
 export type AssetFormData = {
   name: string;
   description?: string;
-  category?: string;
+  category_id: string;
   serial_number?: string;
   purchase_price?: number;
   status: string;

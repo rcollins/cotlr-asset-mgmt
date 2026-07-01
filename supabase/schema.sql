@@ -35,7 +35,8 @@ create table if not exists public.assets (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   description text,
-  category uuid references public.asset_categories(id),
+  category_id uuid references public.asset_categories(id),
+  category text, -- denormalized name; must match asset_categories.name (assets_category_check)
   serial_number text,
   purchase_price numeric(12, 2),
   status text not null default 'active',

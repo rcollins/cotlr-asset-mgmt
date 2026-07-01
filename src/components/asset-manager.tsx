@@ -105,7 +105,7 @@ export function AssetManager({
     return asset.site?.name ?? "—";
   }
 
-  function getCategoryName(asset: Asset): string {
+  function getCategoryLabel(asset: Asset): string {
     return asset.asset_category?.name ?? "—";
   }
 
@@ -189,7 +189,7 @@ export function AssetManager({
                       {asset.name}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {getCategoryName(asset)}
+                      {getCategoryLabel(asset)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                       <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-medium capitalize text-gray-800">

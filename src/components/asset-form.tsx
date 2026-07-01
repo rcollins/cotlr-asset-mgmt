@@ -35,11 +35,12 @@ export function AssetForm({
     const formData = new FormData(e.currentTarget);
     const purchasePrice = formData.get("purchase_price") as string;
     const locationId = formData.get("location_id") as string;
+    const categoryId = formData.get("category_id") as string;
 
     const data: AssetFormData = {
       name: formData.get("name") as string,
       description: (formData.get("description") as string) || undefined,
-      category: (formData.get("category") as string) || undefined,
+      category_id: categoryId,
       serial_number: (formData.get("serial_number") as string) || undefined,
       purchase_price: purchasePrice ? parseFloat(purchasePrice) : undefined,
       status: formData.get("status") as string,
@@ -78,13 +79,14 @@ export function AssetForm({
         </div>
 
         <div>
-          <label htmlFor="category" className="block text-sm font-medium text-gray-700">
-            Category
+          <label htmlFor="category_id" className="block text-sm font-medium text-gray-700">
+            Category *
           </label>
           <select
-            id="category"
-            name="category"
-            defaultValue={asset?.category ?? ""}
+            id="category_id"
+            name="category_id"
+            required
+            defaultValue={asset?.category_id ?? ""}
             className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
           >
             <option value="">Select a category</option>

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { buildAssetWritePayload } from "@/lib/asset-payload";
 import { createClient } from "@/lib/supabase/server";
 import { canDeleteAsset } from "@/lib/permissions";
 import type { AssetFormData, UserRole } from "@/lib/types";
@@ -27,10 +28,16 @@ export async function createAsset(data: AssetFormData) {
   const { supabase, user } = await getAuthenticatedUser();
   if (!user) return { error: "Not authenticated" };
 
-  const { error } = await supabase.from("assets").insert({
-    ...data,
-    created_by: user.id,
-  });
+  const { payload, error: payloadError } = await buildAssetWritePayload(
+    supabase,
+    data,
+    user.id,
+    "create",
+  );
+
+  if (payloadError || !payload) return { error: payloadError ?? "Invalid asset data" };
+
+  const { error } = await supabase.from("assets").insert(payload);
 
   if (error) return { error: error.message };
 
@@ -43,10 +50,16 @@ export async function updateAsset(id: string, data: AssetFormData) {
   const { supabase, user } = await getAuthenticatedUser();
   if (!user) return { error: "Not authenticated" };
 
-  const { error } = await supabase
-    .from("assets")
-    .update({ ...data, updated_at: new Date().toISOString() })
-    .eq("id", id);
+  const { payload, error: payloadError } = await buildAssetWritePayload(
+    supabase,
+    data,
+    user.id,
+    "update",
+  );
+
+  if (payloadError || !payload) return { error: payloadError ?? "Invalid asset data" };
+
+  const { error } = await supabase.from("assets").update(payload).eq("id", id);
 
   if (error) return { error: error.message };
 

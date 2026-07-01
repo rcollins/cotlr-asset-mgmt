@@ -16,7 +16,7 @@ export default async function AssetsPage() {
   const [assetsResult, sites, categories, lastUsedSiteId] = await Promise.all([
     supabase
       .from("assets")
-      .select("*, site:sites!location_id(id, name), asset_category:asset_categories(id, name)")
+      .select("*, site:sites!location_id(id, name), asset_category:asset_categories!category_id(id, name)")
       .order("created_at", { ascending: false }),
     getSites(),
     getAssetCategories(),
