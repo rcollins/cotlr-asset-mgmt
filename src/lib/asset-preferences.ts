@@ -1,1 +1,1 @@
-export const LAST_SITE_STORAGE_KEY = "cotlr:lastSiteId";
+export const LAST_LOCATION_STORAGE_KEY = "cotlr:lastLocationId";

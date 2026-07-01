@@ -4,34 +4,46 @@ import { useEffect, useState } from "react";
 import { createAsset, deleteAsset, updateAsset } from "@/app/actions";
 import { AssetForm } from "@/components/asset-form";
 import { Card } from "@/components/card";
-import { LAST_SITE_STORAGE_KEY } from "@/lib/asset-preferences";
-import { canDeleteAsset } from "@/lib/permissions";
-import type { Asset, AssetFormData, AssetCategory, Site, UserRole } from "@/lib/types";
+import { LAST_LOCATION_STORAGE_KEY } from "@/lib/asset-preferences";
+import { formatLocationLabel } from "@/lib/locations";
+import { canDeleteAsset, canManageLocationsAndAssets } from "@/lib/permissions";
+import type {
+  Asset,
+  AssetFormData,
+  AssetCategory,
+  AssetStatus,
+  Location,
+  UserRole,
+} from "@/lib/types";
 
 type AssetManagerProps = {
   assets: Asset[];
-  sites: Site[];
+  locations: Location[];
   categories: AssetCategory[];
-  lastUsedSiteId: string | null;
+  statuses: AssetStatus[];
+  lastUsedLocationId: string | null;
   userRole: UserRole;
+  siteName?: string | null;
 };
 
-function resolveDefaultSiteId(
-  sites: Site[],
-  serverLastUsedSiteId: string | null,
+function resolveDefaultLocationId(
+  locations: Location[],
+  serverLastUsedLocationId: string | null,
 ): string | null {
   if (typeof window !== "undefined") {
-    const stored = localStorage.getItem(LAST_SITE_STORAGE_KEY);
-    if (stored && sites.some((site) => site.id === stored)) {
+    const stored =
+      localStorage.getItem(LAST_LOCATION_STORAGE_KEY) ??
+      localStorage.getItem("cotlr:lastSiteId");
+    if (stored && locations.some((location) => location.id === stored)) {
       return stored;
     }
   }
 
   if (
-    serverLastUsedSiteId &&
-    sites.some((site) => site.id === serverLastUsedSiteId)
+    serverLastUsedLocationId &&
+    locations.some((location) => location.id === serverLastUsedLocationId)
   ) {
-    return serverLastUsedSiteId;
+    return serverLastUsedLocationId;
   }
 
   return null;
@@ -39,26 +51,41 @@ function resolveDefaultSiteId(
 
 export function AssetManager({
   assets,
-  sites,
+  locations,
   categories,
-  lastUsedSiteId: serverLastUsedSiteId,
+  statuses,
+  lastUsedLocationId: serverLastUsedLocationId,
   userRole,
+  siteName,
 }: AssetManagerProps) {
   const [showForm, setShowForm] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [defaultSiteId, setDefaultSiteId] = useState<string | null>(null);
+  const [defaultLocationId, setDefaultLocationId] = useState<string | null>(null);
 
   const allowDelete = canDeleteAsset(userRole);
+  const allowCreate = canManageLocationsAndAssets(userRole);
 
   useEffect(() => {
-    setDefaultSiteId(resolveDefaultSiteId(sites, serverLastUsedSiteId));
-  }, [sites, serverLastUsedSiteId]);
+    const resolved = resolveDefaultLocationId(locations, serverLastUsedLocationId);
+    if (typeof window !== "undefined") {
+      const stored =
+        localStorage.getItem(LAST_LOCATION_STORAGE_KEY) ??
+        localStorage.getItem("cotlr:lastSiteId");
+      if (stored && !resolved) {
+        localStorage.removeItem(LAST_LOCATION_STORAGE_KEY);
+        localStorage.removeItem("cotlr:lastSiteId");
+      }
+    }
+    setDefaultLocationId(resolved);
+  }, [locations, serverLastUsedLocationId]);
 
-  function rememberSiteId(siteId: string | undefined) {
-    if (!siteId) return;
-    localStorage.setItem(LAST_SITE_STORAGE_KEY, siteId);
-    setDefaultSiteId(siteId);
+  function rememberLocationId(locationId: string | undefined) {
+    if (!locationId) return;
+    if (!locations.some((location) => location.id === locationId)) return;
+    localStorage.setItem(LAST_LOCATION_STORAGE_KEY, locationId);
+    localStorage.removeItem("cotlr:lastSiteId");
+    setDefaultLocationId(locationId);
   }
 
   function handleAddClick() {
@@ -82,9 +109,18 @@ export function AssetManager({
       : await createAsset(data);
 
     if (result.success) {
-      rememberSiteId(data.location_id);
+      rememberLocationId(data.location_id);
       setShowForm(false);
       setEditingAsset(null);
+    } else if (
+      result.error?.toLowerCase().includes("location") &&
+      typeof window !== "undefined"
+    ) {
+      localStorage.removeItem(LAST_LOCATION_STORAGE_KEY);
+      localStorage.removeItem("cotlr:lastSiteId");
+      setDefaultLocationId(
+        resolveDefaultLocationId(locations, serverLastUsedLocationId),
+      );
     }
 
     return result;
@@ -101,14 +137,6 @@ export function AssetManager({
     }
   }
 
-  function getSiteName(asset: Asset): string {
-    return asset.site?.name ?? "—";
-  }
-
-  function getCategoryLabel(asset: Asset): string {
-    return asset.asset_category?.name ?? "—";
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -116,7 +144,7 @@ export function AssetManager({
           <h2 className="text-lg font-semibold text-gray-900">Assets</h2>
           <p className="text-sm text-gray-500">Manage your organization&apos;s assets</p>
         </div>
-        {!showForm && (
+        {!showForm && allowCreate && (
           <button
             type="button"
             onClick={handleAddClick}
@@ -145,18 +173,34 @@ export function AssetManager({
           <AssetForm
             key={editingAsset?.id ?? "new"}
             asset={editingAsset ?? undefined}
-            sites={sites}
+            locations={locations}
             categories={categories}
-            defaultSiteId={editingAsset ? editingAsset.location_id : defaultSiteId}
+            statuses={statuses}
+            defaultLocationId={
+              editingAsset ? editingAsset.location_id : defaultLocationId
+            }
             onSubmit={handleSubmit}
             onCancel={handleCancel}
           />
         </Card>
       )}
 
-      <Card title="Asset List" subtitle={`${assets.length} total assets`}>
+      <Card
+        title="Asset List"
+        subtitle={
+          siteName
+            ? `${assets.length} assets at ${siteName}`
+            : `${assets.length} total assets`
+        }
+      >
         {assets.length === 0 ? (
-          <p className="text-sm text-gray-500">No assets yet. Add your first asset above.</p>
+          <p className="text-sm text-gray-500">
+            {siteName
+              ? `No assets at ${siteName}.`
+              : allowCreate
+                ? "No assets yet. Add your first asset above."
+                : "No assets yet."}
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -189,15 +233,15 @@ export function AssetManager({
                       {asset.name}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {getCategoryLabel(asset)}
+                      {asset.asset_category?.name ?? asset.category ?? "—"}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-medium capitalize text-gray-800">
+                      <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800">
                         {asset.status}
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {getSiteName(asset)}
+                      {formatLocationLabel(asset.location)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                       {asset.purchase_price != null

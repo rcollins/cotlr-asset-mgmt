@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { buildAssetWritePayload } from "@/lib/asset-payload";
 import { createClient } from "@/lib/supabase/server";
-import { canDeleteAsset } from "@/lib/permissions";
-import type { AssetFormData, UserRole } from "@/lib/types";
+import { canDeleteAsset, canManageLocationsAndAssets } from "@/lib/permissions";
+import type { AssetFormData, Location, LocationFormData, UserRole } from "@/lib/types";
 
 async function getAuthenticatedUser() {
   const supabase = await createClient();
@@ -27,6 +27,11 @@ async function getUserRole(supabase: Awaited<ReturnType<typeof createClient>>, u
 export async function createAsset(data: AssetFormData) {
   const { supabase, user } = await getAuthenticatedUser();
   if (!user) return { error: "Not authenticated" };
+
+  const role = await getUserRole(supabase, user.id);
+  if (!canManageLocationsAndAssets(role)) {
+    return { error: "Only CFO users can add assets" };
+  }
 
   const { payload, error: payloadError } = await buildAssetWritePayload(
     supabase,
@@ -84,6 +89,44 @@ export async function deleteAsset(id: string) {
   revalidatePath("/dashboard");
   revalidatePath("/assets");
   return { success: true };
+}
+
+export async function createLocation(data: LocationFormData) {
+  const { supabase, user } = await getAuthenticatedUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const role = await getUserRole(supabase, user.id);
+  if (!canManageLocationsAndAssets(role)) {
+    return { error: "Only CFO users can add locations" };
+  }
+
+  if (!data.site_id?.trim() || !data.name?.trim()) {
+    return { error: "Site and location name are required" };
+  }
+
+  const { data: location, error } = await supabase
+    .from("locations")
+    .insert({
+      site_id: data.site_id,
+      name: data.name.trim(),
+      description: data.description?.trim() || null,
+    })
+    .select("id, site_id, name, description, site:sites!site_id(id, name)")
+    .single();
+
+  if (error) return { error: error.message };
+
+  const mapped: Location = {
+    id: location.id,
+    site_id: location.site_id,
+    name: location.name,
+    description: location.description,
+    site: Array.isArray(location.site) ? location.site[0] ?? null : location.site,
+  };
+
+  revalidatePath("/sites/manage");
+  revalidatePath("/assets");
+  return { success: true, location: mapped };
 }
 
 export async function signOut() {

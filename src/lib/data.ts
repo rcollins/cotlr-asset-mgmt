@@ -1,5 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
-import type { AssetCategory, DashboardStats, Profile, Site } from "@/lib/types";
+import type {
+  AssetCategory,
+  AssetStatus,
+  DashboardStats,
+  Location,
+  Profile,
+  Site,
+} from "@/lib/types";
 
 export async function getCurrentProfile(): Promise<Profile | null> {
   const supabase = await createClient();
@@ -25,25 +32,64 @@ export async function getCurrentProfile(): Promise<Profile | null> {
   };
 }
 
-export async function getDashboardStats(): Promise<DashboardStats> {
+export async function getDashboardStats(siteId?: string | null): Promise<DashboardStats> {
   const supabase = await createClient();
 
-  const [assetsResult, approvalsResult, requestsResult] = await Promise.all([
-    supabase.from("assets").select("id", { count: "exact", head: true }),
-    supabase
-      .from("approval_requests")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "pending"),
-    supabase
-      .from("asset_requests")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "in_progress"),
+  let locationIds: string[] | null = null;
+
+  if (siteId) {
+    const { data: locations } = await supabase
+      .from("locations")
+      .select("id")
+      .eq("site_id", siteId);
+
+    locationIds = (locations ?? []).map((location) => location.id);
+
+    if (locationIds.length === 0) {
+      return {
+        assets: 0,
+        pendingApprovals: 0,
+        requests: 0,
+      };
+    }
+  }
+
+  let assetsQuery = supabase.from("assets").select("id", { count: "exact", head: true });
+  let approvalsQuery = supabase
+    .from("approval_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pending");
+
+  if (locationIds) {
+    assetsQuery = assetsQuery.in("location_id", locationIds);
+
+    const { data: siteAssets } = await supabase
+      .from("assets")
+      .select("id")
+      .in("location_id", locationIds);
+
+    const assetIds = (siteAssets ?? []).map((asset) => asset.id);
+
+    if (assetIds.length === 0) {
+      return {
+        assets: 0,
+        pendingApprovals: 0,
+        requests: 0,
+      };
+    }
+
+    approvalsQuery = approvalsQuery.in("asset_id", assetIds);
+  }
+
+  const [assetsResult, approvalsResult] = await Promise.all([
+    assetsQuery,
+    approvalsQuery,
   ]);
 
   return {
     assets: assetsResult.count ?? 0,
     pendingApprovals: approvalsResult.count ?? 0,
-    requests: requestsResult.count ?? 0,
+    requests: approvalsResult.count ?? 0,
   };
 }
 
@@ -51,13 +97,31 @@ export async function getSites(): Promise<Site[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("sites")
-    .select("id, name")
+    .select("id, name, address")
     .order("name");
 
   return (data as Site[]) ?? [];
 }
 
-export async function getLastUsedSiteId(userId: string): Promise<string | null> {
+export async function getLocations(): Promise<Location[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("locations")
+    .select("id, site_id, name, description, site:sites!site_id(id, name)")
+    .order("name");
+
+  if (!data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    site_id: row.site_id,
+    name: row.name,
+    description: row.description,
+    site: Array.isArray(row.site) ? row.site[0] ?? null : row.site,
+  })) as Location[];
+}
+
+export async function getLastUsedLocationId(userId: string): Promise<string | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("assets")
@@ -79,4 +143,14 @@ export async function getAssetCategories(): Promise<AssetCategory[]> {
     .order("name");
 
   return (data as AssetCategory[]) ?? [];
+}
+
+export async function getAssetStatuses(): Promise<AssetStatus[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("asset_statuses")
+    .select("id, name")
+    .order("name");
+
+  return (data as AssetStatus[]) ?? [];
 }

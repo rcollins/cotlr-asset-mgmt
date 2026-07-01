@@ -1,31 +1,69 @@
 "use client";
 
 import { useState } from "react";
-import type { Asset, AssetFormData, AssetCategory, Site } from "@/lib/types";
+import { formatLocationLabel } from "@/lib/locations";
+import {
+  formatAssetStatusLabel,
+  normalizeAssetStatus,
+  resolveStatusOptions,
+} from "@/lib/asset-statuses";
+import type {
+  Asset,
+  AssetFormData,
+  AssetCategory,
+  AssetStatus,
+  Location,
+} from "@/lib/types";
 
 type AssetFormProps = {
   asset?: Asset;
-  sites: Site[];
+  locations: Location[];
   categories: AssetCategory[];
-  defaultSiteId?: string | null;
+  statuses: AssetStatus[];
+  defaultLocationId?: string | null;
+  fixedLocationId?: string;
+  fixedLocationLabel?: string;
   onSubmit: (data: AssetFormData) => Promise<{ error?: string; success?: boolean }>;
   onCancel: () => void;
 };
 
-const STATUS_OPTIONS = ["active", "inactive", "maintenance", "retired"];
+function toDateInputValue(value: string | null | undefined): string {
+  if (!value) return "";
+  return value.slice(0, 10);
+}
+
+function getOptionalString(formData: FormData, key: string): string | undefined {
+  const value = formData.get(key) as string;
+  return value || undefined;
+}
+
+function getOptionalNumber(formData: FormData, key: string): number | undefined {
+  const value = formData.get(key) as string;
+  if (!value) return undefined;
+  const parsed = parseFloat(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
 
 export function AssetForm({
   asset,
-  sites,
+  locations,
   categories,
-  defaultSiteId,
+  statuses,
+  defaultLocationId,
+  fixedLocationId,
+  fixedLocationLabel,
   onSubmit,
   onCancel,
 }: AssetFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const selectedSiteId = asset?.location_id ?? defaultSiteId ?? "";
+  const statusOptions = resolveStatusOptions(statuses);
+  const selectedLocationId = asset?.location_id ?? defaultLocationId ?? "";
+  const defaultStatus =
+    normalizeAssetStatus(asset?.status ?? "") ??
+    normalizeAssetStatus(statusOptions[0]?.name ?? "") ??
+    "";
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -33,18 +71,21 @@ export function AssetForm({
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
-    const purchasePrice = formData.get("purchase_price") as string;
-    const locationId = formData.get("location_id") as string;
-    const categoryId = formData.get("category_id") as string;
 
     const data: AssetFormData = {
       name: formData.get("name") as string,
-      description: (formData.get("description") as string) || undefined,
-      category_id: categoryId,
-      serial_number: (formData.get("serial_number") as string) || undefined,
-      purchase_price: purchasePrice ? parseFloat(purchasePrice) : undefined,
+      description: getOptionalString(formData, "description"),
+      category: formData.get("category") as string,
+      serial_number: getOptionalString(formData, "serial_number"),
+      purchase_price: getOptionalNumber(formData, "purchase_price"),
+      purchase_date: getOptionalString(formData, "purchase_date"),
+      useful_life_date: getOptionalString(formData, "useful_life_date"),
+      disposal_date: getOptionalString(formData, "disposal_date"),
+      book_value: getOptionalNumber(formData, "book_value"),
+      book_value_override: formData.get("book_value_override") === "on",
+      depreciation_method: getOptionalString(formData, "depreciation_method"),
       status: formData.get("status") as string,
-      location_id: locationId || undefined,
+      location_id: fixedLocationId ?? (formData.get("location_id") as string),
     };
 
     const result = await onSubmit(data);
@@ -79,19 +120,19 @@ export function AssetForm({
         </div>
 
         <div>
-          <label htmlFor="category_id" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="category" className="block text-sm font-medium text-gray-700">
             Category *
           </label>
           <select
-            id="category_id"
-            name="category_id"
+            id="category"
+            name="category"
             required
-            defaultValue={asset?.category_id ?? ""}
+            defaultValue={asset?.category ?? ""}
             className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
           >
             <option value="">Select a category</option>
             {categories.map((category) => (
-              <option key={category.id} value={category.id}>
+              <option key={category.id} value={category.name}>
                 {category.name}
               </option>
             ))}
@@ -127,6 +168,19 @@ export function AssetForm({
         </div>
 
         <div>
+          <label htmlFor="purchase_date" className="block text-sm font-medium text-gray-700">
+            Purchase Date
+          </label>
+          <input
+            id="purchase_date"
+            name="purchase_date"
+            type="date"
+            defaultValue={toDateInputValue(asset?.purchase_date)}
+            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
+          />
+        </div>
+
+        <div>
           <label htmlFor="status" className="block text-sm font-medium text-gray-700">
             Status *
           </label>
@@ -134,34 +188,120 @@ export function AssetForm({
             id="status"
             name="status"
             required
-            defaultValue={asset?.status ?? "active"}
+            defaultValue={asset?.status ?? defaultStatus}
             className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
           >
-            {STATUS_OPTIONS.map((status) => (
-              <option key={status} value={status}>
-                {status.charAt(0).toUpperCase() + status.slice(1)}
-              </option>
-            ))}
+            <option value="">Select a status</option>
+            {statusOptions.map((status) => {
+              const value = normalizeAssetStatus(status.name) ?? status.name;
+              return (
+                <option key={status.id} value={value}>
+                  {formatAssetStatusLabel(value)}
+                </option>
+              );
+            })}
           </select>
         </div>
 
+        {fixedLocationId ? (
+          <div>
+            <span className="block text-sm font-medium text-gray-700">Location</span>
+            <p className="mt-1 text-sm text-gray-900">
+              {fixedLocationLabel ?? fixedLocationId}
+            </p>
+            <input type="hidden" name="location_id" value={fixedLocationId} />
+          </div>
+        ) : (
+          <div>
+            <label htmlFor="location_id" className="block text-sm font-medium text-gray-700">
+              Location *
+            </label>
+            <select
+              id="location_id"
+              name="location_id"
+              required
+              defaultValue={selectedLocationId}
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
+            >
+              <option value="">Select a location</option>
+              {locations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {formatLocationLabel(location)}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div className="sm:col-span-2 border-t border-gray-200 pt-4">
+          <h3 className="text-sm font-medium text-gray-900">Depreciation</h3>
+        </div>
+
         <div>
-          <label htmlFor="location_id" className="block text-sm font-medium text-gray-700">
-            Location
+          <label htmlFor="useful_life_date" className="block text-sm font-medium text-gray-700">
+            Useful Life Date
           </label>
-          <select
-            id="location_id"
-            name="location_id"
-            defaultValue={selectedSiteId}
+          <input
+            id="useful_life_date"
+            name="useful_life_date"
+            type="date"
+            defaultValue={toDateInputValue(asset?.useful_life_date)}
             className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
-          >
-            <option value="">Select a site</option>
-            {sites.map((site) => (
-              <option key={site.id} value={site.id}>
-                {site.name}
-              </option>
-            ))}
-          </select>
+          />
+        </div>
+
+        <div>
+          <label htmlFor="disposal_date" className="block text-sm font-medium text-gray-700">
+            Disposal Date
+          </label>
+          <input
+            id="disposal_date"
+            name="disposal_date"
+            type="date"
+            defaultValue={toDateInputValue(asset?.disposal_date)}
+            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="book_value" className="block text-sm font-medium text-gray-700">
+            Book Value
+          </label>
+          <input
+            id="book_value"
+            name="book_value"
+            type="number"
+            step="0.01"
+            min="0"
+            defaultValue={asset?.book_value ?? ""}
+            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="depreciation_method" className="block text-sm font-medium text-gray-700">
+            Depreciation Method
+          </label>
+          <input
+            id="depreciation_method"
+            name="depreciation_method"
+            type="text"
+            defaultValue={asset?.depreciation_method ?? ""}
+            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
+          />
+        </div>
+
+        <div className="flex items-end sm:col-span-2">
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              id="book_value_override"
+              name="book_value_override"
+              type="checkbox"
+              defaultChecked={asset?.book_value_override ?? false}
+              className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-500"
+            />
+            Override book value
+          </label>
         </div>
 
         <div className="sm:col-span-2">

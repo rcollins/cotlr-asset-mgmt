@@ -4,8 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignOutButton } from "@/components/sign-out-button";
 
+import type { UserRole } from "@/lib/types";
+import { canManageLocationsAndAssets } from "@/lib/permissions";
+
 type HeaderProps = {
   userName: string;
+  userRole: UserRole;
 };
 
 const navItems = [
@@ -13,8 +17,11 @@ const navItems = [
   { href: "/assets", label: "Assets" },
 ];
 
-export function Header({ userName }: HeaderProps) {
+export function Header({ userName, userRole }: HeaderProps) {
   const pathname = usePathname();
+  const items = canManageLocationsAndAssets(userRole)
+    ? [...navItems, { href: "/sites/manage", label: "Site Setup" }]
+    : navItems;
 
   return (
     <header className="mb-8">
@@ -30,7 +37,7 @@ export function Header({ userName }: HeaderProps) {
         <SignOutButton />
       </div>
       <nav className="mt-6 flex gap-4 border-b border-gray-200">
-        {navItems.map((item) => {
+        {items.map((item) => {
           const isActive = pathname.startsWith(item.href);
           return (
             <Link
