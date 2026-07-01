@@ -36,6 +36,7 @@ export default async function DashboardPage({
         assets={stats.assets}
         pendingApprovals={stats.pendingApprovals}
         requests={stats.requests}
+        siteId={siteId}
         siteName={selectedSite?.name ?? null}
       />
     </div>
