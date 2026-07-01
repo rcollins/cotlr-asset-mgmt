@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   createCategory,
@@ -18,7 +18,7 @@ import {
 import { createLocation } from "@/app/actions";
 import { Card } from "@/components/card";
 import { formatRole } from "@/lib/permissions";
-import { SITE_FILTER_PARAM } from "@/lib/site-filter";
+import { filterLocationsBySite, SITE_FILTER_PARAM } from "@/lib/site-filter";
 import type {
   AssetCategory,
   Location,
@@ -146,6 +146,8 @@ export function AdminManager({
         <LocationsPanel
           locations={locations}
           sites={sites}
+          siteFilterId={siteFilterId}
+          siteFilterName={siteFilterName}
           loading={loading}
           onCreate={(data) => runAction(() => createLocation(data))}
           onUpdate={(id, data) => runAction(() => updateLocation(id, data))}
@@ -455,6 +457,8 @@ function SiteRow({
 function LocationsPanel({
   locations,
   sites,
+  siteFilterId,
+  siteFilterName,
   loading,
   onCreate,
   onUpdate,
@@ -462,6 +466,8 @@ function LocationsPanel({
 }: {
   locations: Location[];
   sites: Site[];
+  siteFilterId: string | null;
+  siteFilterName: string | null;
   loading: boolean;
   onCreate: (data: {
     site_id: string;
@@ -474,9 +480,15 @@ function LocationsPanel({
   ) => Promise<boolean>;
   onDelete: (id: string) => Promise<boolean>;
 }) {
-  const [siteId, setSiteId] = useState(sites[0]?.id ?? "");
+  const filteredLocations = filterLocationsBySite(locations, siteFilterId);
+  const defaultSiteId = siteFilterId ?? sites[0]?.id ?? "";
+  const [siteId, setSiteId] = useState(defaultSiteId);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+
+  useEffect(() => {
+    setSiteId(siteFilterId ?? sites[0]?.id ?? "");
+  }, [siteFilterId, sites]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -487,14 +499,28 @@ function LocationsPanel({
     }
   }
 
+  const subtitle = siteFilterName
+    ? `${filteredLocations.length} locations at ${siteFilterName}`
+    : `${filteredLocations.length} locations`;
+
+  const emptyMessage = siteFilterName
+    ? `No locations at ${siteFilterName}.`
+    : "No locations yet.";
+
   return (
-    <Card title="Locations" subtitle={`${locations.length} locations`}>
+    <Card title="Locations" subtitle={subtitle}>
+      {siteFilterName && (
+        <p className="mb-4 text-sm text-gray-500">
+          Filtered by site using the selector above.
+        </p>
+      )}
       <form onSubmit={handleCreate} className="mb-6 grid gap-3 sm:grid-cols-4">
         <select
           value={siteId}
           onChange={(e) => setSiteId(e.target.value)}
           required
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+          disabled={Boolean(siteFilterId)}
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50"
         >
           <option value="">Select site</option>
           {sites.map((site) => (
@@ -526,7 +552,7 @@ function LocationsPanel({
       </form>
       <EntityTable
         headers={["Site", "Location", "Description", "Actions"]}
-        rows={locations.map((location) => (
+        rows={filteredLocations.map((location) => (
           <LocationRow
             key={location.id}
             location={location}
@@ -536,7 +562,7 @@ function LocationsPanel({
             onDelete={onDelete}
           />
         ))}
-        emptyMessage="No locations yet."
+        emptyMessage={emptyMessage}
       />
     </Card>
   );
