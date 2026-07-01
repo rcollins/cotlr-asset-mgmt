@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseEnv } from "@/lib/env";
 
 const AUTH_ROUTES = ["/login", "/verify", "/auth"];
-const PROTECTED_ROUTES = ["/dashboard", "/assets", "/sites"];
+const PROTECTED_ROUTES = ["/dashboard", "/assets", "/sites", "/admin"];
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });

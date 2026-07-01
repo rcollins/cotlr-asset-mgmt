@@ -125,6 +125,7 @@ export async function createLocation(data: LocationFormData) {
   };
 
   revalidatePath("/sites/manage");
+  revalidatePath("/admin");
   revalidatePath("/assets");
   return { success: true, location: mapped };
 }

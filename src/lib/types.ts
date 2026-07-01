@@ -30,6 +30,34 @@ export type LocationFormData = {
 export type AssetCategory = {
   id: string;
   name: string;
+  description?: string | null;
+};
+
+export type CategoryFormData = {
+  name: string;
+  description?: string;
+};
+
+export type SiteFormData = {
+  name: string;
+  address?: string;
+};
+
+export type UserFormData = {
+  email: string;
+  full_name?: string;
+  role: UserRole;
+};
+
+export type UserUpdateData = {
+  full_name?: string;
+  role: UserRole;
+};
+
+export type LocationUpdateData = {
+  site_id: string;
+  name: string;
+  description?: string;
 };
 
 export type AssetStatus = {

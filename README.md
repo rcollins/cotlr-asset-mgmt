@@ -52,6 +52,7 @@ In **Vercel → Project → Settings → Environment Variables**, add:
 |----------|-------------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only, required for Admin user management) |
 
 Apply to **Production**, **Preview**, and **Development** environments.
 
@@ -91,8 +92,8 @@ After the first production deploy, update the Supabase Site URL to match your fi
 ## Auth flow
 
 - Users sign in with email OTP (`/login` → `/verify`)
-- Protected routes: `/dashboard`, `/assets`, `/sites/*`
-- Only CFO users can add locations and assets (`/sites/manage`)
+- Protected routes: `/dashboard`, `/assets`, `/sites/*`, `/admin`
+- Only CFO users can add locations/assets (`/sites/manage`) and access admin (`/admin`)
 
 ## Database migrations
 

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { SignOutButton } from "@/components/sign-out-button";
 
 import type { UserRole } from "@/lib/types";
-import { canManageLocationsAndAssets } from "@/lib/permissions";
+import { canAccessAdmin, canManageLocationsAndAssets } from "@/lib/permissions";
 
 type HeaderProps = {
   userName: string;
@@ -20,7 +20,11 @@ const navItems = [
 export function Header({ userName, userRole }: HeaderProps) {
   const pathname = usePathname();
   const items = canManageLocationsAndAssets(userRole)
-    ? [...navItems, { href: "/sites/manage", label: "Site Setup" }]
+    ? [
+        ...navItems,
+        { href: "/sites/manage", label: "Site Setup" },
+        ...(canAccessAdmin(userRole) ? [{ href: "/admin", label: "Admin" }] : []),
+      ]
     : navItems;
 
   return (

@@ -1,3 +1,4 @@
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type {
   AssetCategory,
@@ -135,11 +136,35 @@ export async function getLastUsedLocationId(userId: string): Promise<string | nu
   return data?.location_id ?? null;
 }
 
+export async function getProfilesForAdmin(): Promise<Profile[]> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id, email, full_name, role")
+    .order("email");
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data as Profile[]) ?? [];
+}
+
+export async function getProfiles(): Promise<Profile[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, email, full_name, role")
+    .order("email");
+
+  return (data as Profile[]) ?? [];
+}
+
 export async function getAssetCategories(): Promise<AssetCategory[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("asset_categories")
-    .select("id, name")
+    .select("id, name, description")
     .order("name");
 
   return (data as AssetCategory[]) ?? [];
